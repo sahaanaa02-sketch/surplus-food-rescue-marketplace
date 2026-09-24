@@ -10,11 +10,19 @@ from app.routers.offers import router as offers_router
 from app.routers.reservations import router as reservations_router
 from app.routers.csv_import import router as csv_import_router
 from app.routers.reports import router as reports_router
+from app.routers.admin import router as admin_router
 
 
-# Create database tables
+# ==================================================
+# CREATE DATABASE TABLES
+# ==================================================
+
 Base.metadata.create_all(bind=engine)
 
+
+# ==================================================
+# FASTAPI APPLICATION
+# ==================================================
 
 app = FastAPI(
     title="ZeroWasteBite - Surplus Food Rescue Marketplace",
@@ -23,7 +31,10 @@ app = FastAPI(
 )
 
 
-# Include routers
+# ==================================================
+# INCLUDE ROUTERS
+# ==================================================
+
 app.include_router(auth_router)
 
 app.include_router(offers_router)
@@ -34,11 +45,15 @@ app.include_router(csv_import_router)
 
 app.include_router(reports_router)
 
+app.include_router(admin_router)
+
+
+# ==================================================
+# ROOT ENDPOINT
+# ==================================================
 
 @app.get("/")
 def root():
     return {
         "message": "ZeroWasteBite API is running"
     }
-
-

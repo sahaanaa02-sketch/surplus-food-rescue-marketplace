@@ -10,7 +10,11 @@ from database import get_db
 from app.auth.security import decode_access_token
 from app.models.user import User
 from app.models.offer import Offer
-from app.schemas.offer import OfferCreate, OfferUpdate, OfferResponse
+from app.schemas.offer import (
+    OfferCreate,
+    OfferUpdate,
+    OfferResponse
+)
 
 
 router = APIRouter(
@@ -18,10 +22,15 @@ router = APIRouter(
     tags=["Offers"]
 )
 
+
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/auth/login"
 )
 
+
+# ==================================================
+# CURRENT USER
+# ==================================================
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -64,21 +73,45 @@ def get_current_user(
     return user
 
 
+# ==================================================
+# GET ACTIVE OFFERS + SEARCH
+# ==================================================
+
 @router.get(
     "/",
     response_model=list[OfferResponse]
 )
 def get_available_offers(
+    item: str | None = None,
+    location: str | None = None,
     db: Session = Depends(get_db)
 ):
     current_time = datetime.now()
 
-    offers = db.query(Offer).filter(
+    query = db.query(Offer).filter(
         Offer.pickup_end > current_time
-    ).all()
+    )
 
-    return offers
+    # Search by food item
+    if item:
+        query = query.filter(
+            Offer.item.ilike(f"%{item}%")
+        )
 
+    # Search by pickup location
+    if location:
+        query = query.filter(
+            Offer.pickup_location.ilike(
+                f"%{location}%"
+            )
+        )
+
+    return query.all()
+
+
+# ==================================================
+# CREATE OFFER
+# ==================================================
 
 @router.post(
     "/",
@@ -93,34 +126,68 @@ def create_offer(
     if current_user.role != "food_owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can create offers"
+            detail=(
+                "Only food business owners "
+                "can create offers"
+            )
         )
 
+    # Quantity validation
     if offer_data.quantity <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Quantity must be greater than zero"
         )
 
-    if offer_data.discounted_price >= offer_data.original_price:
+    # Price validation
+    if (
+        offer_data.original_price <= 0
+        or offer_data.discounted_price <= 0
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Discounted price must be lower than original price"
+            detail="Prices must be greater than zero"
         )
 
-    if offer_data.pickup_end <= offer_data.pickup_start:
+    if (
+        offer_data.discounted_price
+        >= offer_data.original_price
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pickup end time must be after pickup start time"
+            detail=(
+                "Discounted price must be "
+                "lower than original price"
+            )
         )
 
+    # Pickup time validation
+    if (
+        offer_data.pickup_end
+        <= offer_data.pickup_start
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Pickup end time must be "
+                "after pickup start time"
+            )
+        )
+
+    # Expiry validation
     if offer_data.pickup_end <= datetime.now():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pickup end time must be in the future"
+            detail=(
+                "Pickup end time must be "
+                "in the future"
+            )
         )
 
-    offer_id = f"OFR-{uuid4().hex[:8].upper()}"
+    # Generate unique offer ID
+    offer_id = (
+        f"OFR-{uuid4().hex[:8].upper()}"
+    )
 
     new_offer = Offer(
         offer_id=offer_id,
@@ -142,6 +209,10 @@ def create_offer(
     return new_offer
 
 
+# ==================================================
+# GET MY OFFERS
+# ==================================================
+
 @router.get(
     "/my-offers",
     response_model=list[OfferResponse]
@@ -153,7 +224,10 @@ def get_my_offers(
     if current_user.role != "food_owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can view their offers"
+            detail=(
+                "Only food business owners "
+                "can view their offers"
+            )
         )
 
     offers = db.query(Offer).filter(
@@ -162,6 +236,10 @@ def get_my_offers(
 
     return offers
 
+
+# ==================================================
+# UPDATE OFFER
+# ==================================================
 
 @router.put(
     "/{offer_id}",
@@ -176,7 +254,10 @@ def update_offer(
     if current_user.role != "food_owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can update offers"
+            detail=(
+                "Only food business owners "
+                "can update offers"
+            )
         )
 
     offer = db.query(Offer).filter(
@@ -189,10 +270,14 @@ def update_offer(
             detail="Offer not found"
         )
 
+    # Owner can update only own offer
     if offer.business_owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only update your own offers"
+            detail=(
+                "You can only update "
+                "your own offers"
+            )
         )
 
     update_data = offer_data.model_dump(
@@ -202,28 +287,53 @@ def update_offer(
     for field, value in update_data.items():
         setattr(offer, field, value)
 
+    # Quantity validation
     if offer.quantity <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Quantity must be greater than zero"
         )
 
-    if offer.discounted_price >= offer.original_price:
+    # Price validation
+    if (
+        offer.original_price <= 0
+        or offer.discounted_price <= 0
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Discounted price must be lower than original price"
+            detail="Prices must be greater than zero"
         )
 
+    if (
+        offer.discounted_price
+        >= offer.original_price
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Discounted price must be "
+                "lower than original price"
+            )
+        )
+
+    # Pickup time validation
     if offer.pickup_end <= offer.pickup_start:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pickup end time must be after pickup start time"
+            detail=(
+                "Pickup end time must be "
+                "after pickup start time"
+            )
         )
 
+    # Expiry validation
     if offer.pickup_end <= datetime.now():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pickup end time must be in the future"
+            detail=(
+                "Pickup end time must be "
+                "in the future"
+            )
         )
 
     db.commit()
@@ -231,6 +341,10 @@ def update_offer(
 
     return offer
 
+
+# ==================================================
+# DELETE OFFER
+# ==================================================
 
 @router.delete(
     "/{offer_id}"
@@ -243,7 +357,10 @@ def delete_offer(
     if current_user.role != "food_owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can delete offers"
+            detail=(
+                "Only food business owners "
+                "can delete offers"
+            )
         )
 
     offer = db.query(Offer).filter(
@@ -256,10 +373,14 @@ def delete_offer(
             detail="Offer not found"
         )
 
+    # Owner can delete only own offer
     if offer.business_owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only delete your own offers"
+            detail=(
+                "You can only delete "
+                "your own offers"
+            )
         )
 
     db.delete(offer)
@@ -269,8 +390,3 @@ def delete_offer(
         "message": "Offer deleted successfully",
         "offer_id": offer_id
     }
-
-
-
-
-
