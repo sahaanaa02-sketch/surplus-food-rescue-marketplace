@@ -1,3 +1,4 @@
+
 from datetime import datetime
 from uuid import uuid4
 
@@ -25,10 +26,6 @@ oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/auth/login"
 )
 
-
-# =========================================================
-# GET CURRENT USER
-# =========================================================
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -71,10 +68,6 @@ def get_current_user(
     return user
 
 
-# =========================================================
-# CREATE RESERVATION
-# =========================================================
-
 @router.post(
     "/",
     response_model=ReservationResponse,
@@ -85,29 +78,17 @@ def create_reservation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # -----------------------------------------------------
-    # Only customers can make reservations
-    # -----------------------------------------------------
-
     if current_user.role != "customer":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only customers can make reservations"
         )
 
-    # -----------------------------------------------------
-    # Quantity validation
-    # -----------------------------------------------------
-
     if reservation_data.quantity <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Reservation quantity must be greater than zero"
         )
-
-    # -----------------------------------------------------
-    # Find offer
-    # -----------------------------------------------------
 
     offer = db.query(Offer).filter(
         Offer.id == reservation_data.offer_id
@@ -119,10 +100,6 @@ def create_reservation(
             detail="Offer not found"
         )
 
-    # -----------------------------------------------------
-    # Check offer expiry
-    # -----------------------------------------------------
-
     current_time = datetime.now()
 
     if current_time >= offer.pickup_end:
@@ -130,12 +107,6 @@ def create_reservation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This offer has expired"
         )
-
-    # -----------------------------------------------------
-    # Calculate already reserved quantity
-    #
-    # Cancelled reservations are NOT counted.
-    # -----------------------------------------------------
 
     existing_reservations = db.query(
         Reservation
@@ -149,17 +120,9 @@ def create_reservation(
         for reservation in existing_reservations
     )
 
-    # -----------------------------------------------------
-    # Calculate available quantity
-    # -----------------------------------------------------
-
     available_quantity = (
         offer.quantity - reserved_quantity
     )
-
-    # -----------------------------------------------------
-    # Prevent negative stock
-    # -----------------------------------------------------
 
     if reservation_data.quantity > available_quantity:
         raise HTTPException(
@@ -167,36 +130,20 @@ def create_reservation(
             detail=f"Only {available_quantity} quantity available"
         )
 
-    # -----------------------------------------------------
-    # Calculate total price
-    # -----------------------------------------------------
-
     total_price = (
         offer.discounted_price *
         reservation_data.quantity
     )
 
-    # -----------------------------------------------------
-    # Generate unique reservation ID
-    # -----------------------------------------------------
-
     reservation_id = (
         f"RES-{uuid4().hex[:8].upper()}"
     )
-
-    # -----------------------------------------------------
-    # Generate reservation signature
-    # -----------------------------------------------------
 
     signature = (
         f"{reservation_id}-"
         f"{current_user.id}-"
         f"{offer.id}"
     )
-
-    # -----------------------------------------------------
-    # Create reservation
-    # -----------------------------------------------------
 
     new_reservation = Reservation(
         reservation_id=reservation_id,
@@ -215,10 +162,6 @@ def create_reservation(
 
     return new_reservation
 
-
-# =========================================================
-# GET MY RESERVATIONS
-# =========================================================
 
 @router.get(
     "/my-reservations",
@@ -241,3 +184,52 @@ def get_my_reservations(
     ).all()
 
     return reservations
+
+
+@router.patch(
+    "/{reservation_id}/cancel",
+    response_model=ReservationResponse
+)
+def cancel_reservation(
+    reservation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can cancel reservations"
+        )
+
+    reservation = db.query(
+        Reservation
+    ).filter(
+        Reservation.reservation_id == reservation_id
+    ).first()
+
+    if not reservation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reservation not found"
+        )
+
+    if reservation.customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only cancel your own reservation"
+        )
+
+    if reservation.status != "reserved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only reserved reservations can be cancelled"
+        )
+
+    reservation.status = "cancelled"
+
+    db.commit()
+    db.refresh(reservation)
+
+    return reservation
+
+

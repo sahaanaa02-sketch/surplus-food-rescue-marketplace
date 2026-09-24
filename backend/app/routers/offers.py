@@ -1,3 +1,5 @@
+
+from datetime import datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,22 +10,22 @@ from database import get_db
 from app.auth.security import decode_access_token
 from app.models.user import User
 from app.models.offer import Offer
-from app.schemas.offer import OfferCreate, OfferUpdate, OfferResponse
+from app.models.reservation import Reservation
+from app.schemas.reservation import (
+    ReservationCreate,
+    ReservationResponse
+)
 
 
 router = APIRouter(
-    prefix="/offers",
-    tags=["Offers"]
+    prefix="/reservations",
+    tags=["Reservations"]
 )
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/auth/login"
 )
 
-
-# =========================================================
-# GET CURRENT USER
-# =========================================================
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -66,212 +68,167 @@ def get_current_user(
     return user
 
 
-# =========================================================
-# BROWSE ALL OFFERS
-# =========================================================
-
-@router.get(
-    "/",
-    response_model=list[OfferResponse]
-)
-def get_available_offers(
-    db: Session = Depends(get_db)
-):
-    offers = db.query(Offer).all()
-
-    return offers
-
-
-# =========================================================
-# CREATE OFFER
-# =========================================================
-
 @router.post(
     "/",
-    response_model=OfferResponse,
+    response_model=ReservationResponse,
     status_code=status.HTTP_201_CREATED
 )
-def create_offer(
-    offer_data: OfferCreate,
+def create_reservation(
+    reservation_data: ReservationCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role != "food_owner":
+    if current_user.role != "customer":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can create offers"
+            detail="Only customers can make reservations"
         )
 
-    if offer_data.quantity <= 0:
+    if reservation_data.quantity <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Quantity must be greater than zero"
+            detail="Reservation quantity must be greater than zero"
         )
 
-    if offer_data.discounted_price >= offer_data.original_price:
+    offer = db.query(Offer).filter(
+        Offer.id == reservation_data.offer_id
+    ).first()
+
+    if not offer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Offer not found"
+        )
+
+    current_time = datetime.now()
+
+    if current_time >= offer.pickup_end:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Discounted price must be lower than original price"
+            detail="This offer has expired"
         )
 
-    if offer_data.pickup_end <= offer_data.pickup_start:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pickup end time must be after pickup start time"
-        )
-
-    offer_id = f"OFR-{uuid4().hex[:8].upper()}"
-
-    new_offer = Offer(
-        offer_id=offer_id,
-        item=offer_data.item,
-        description=offer_data.description,
-        original_price=offer_data.original_price,
-        discounted_price=offer_data.discounted_price,
-        quantity=offer_data.quantity,
-        pickup_location=offer_data.pickup_location,
-        pickup_start=offer_data.pickup_start,
-        pickup_end=offer_data.pickup_end,
-        business_owner_id=current_user.id
-    )
-
-    db.add(new_offer)
-    db.commit()
-    db.refresh(new_offer)
-
-    return new_offer
-
-
-# =========================================================
-# GET MY OFFERS
-# =========================================================
-
-@router.get(
-    "/my-offers",
-    response_model=list[OfferResponse]
-)
-def get_my_offers(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if current_user.role != "food_owner":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can view their offers"
-        )
-
-    offers = db.query(Offer).filter(
-        Offer.business_owner_id == current_user.id
+    existing_reservations = db.query(
+        Reservation
+    ).filter(
+        Reservation.offer_id == offer.id,
+        Reservation.status != "cancelled"
     ).all()
 
-    return offers
-
-
-# =========================================================
-# UPDATE OFFER
-# =========================================================
-
-@router.put(
-    "/{offer_id}",
-    response_model=OfferResponse
-)
-def update_offer(
-    offer_id: str,
-    offer_data: OfferUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if current_user.role != "food_owner":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can update offers"
-        )
-
-    offer = db.query(Offer).filter(
-        Offer.offer_id == offer_id
-    ).first()
-
-    if not offer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Offer not found"
-        )
-
-    if offer.business_owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only update your own offers"
-        )
-
-    update_data = offer_data.model_dump(
-        exclude_unset=True
+    reserved_quantity = sum(
+        reservation.quantity
+        for reservation in existing_reservations
     )
 
-    for field, value in update_data.items():
-        setattr(offer, field, value)
+    available_quantity = (
+        offer.quantity - reserved_quantity
+    )
 
-    if offer.quantity <= 0:
+    if reservation_data.quantity > available_quantity:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Quantity must be greater than zero"
+            detail=f"Only {available_quantity} quantity available"
         )
 
-    if offer.discounted_price >= offer.original_price:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Discounted price must be lower than original price"
-        )
+    total_price = (
+        offer.discounted_price *
+        reservation_data.quantity
+    )
 
-    if offer.pickup_end <= offer.pickup_start:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pickup end time must be after pickup start time"
-        )
+    reservation_id = (
+        f"RES-{uuid4().hex[:8].upper()}"
+    )
 
+    signature = (
+        f"{reservation_id}-"
+        f"{current_user.id}-"
+        f"{offer.id}"
+    )
+
+    new_reservation = Reservation(
+        reservation_id=reservation_id,
+        offer_id=offer.id,
+        customer_id=current_user.id,
+        quantity=reservation_data.quantity,
+        total_price=total_price,
+        signature=signature,
+        status="reserved",
+        reserved_at=current_time
+    )
+
+    db.add(new_reservation)
     db.commit()
-    db.refresh(offer)
+    db.refresh(new_reservation)
 
-    return offer
+    return new_reservation
 
 
-# =========================================================
-# DELETE OFFER
-# =========================================================
-
-@router.delete(
-    "/{offer_id}"
+@router.get(
+    "/my-reservations",
+    response_model=list[ReservationResponse]
 )
-def delete_offer(
-    offer_id: str,
+def get_my_reservations(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if current_user.role != "food_owner":
+    if current_user.role != "customer":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only food business owners can delete offers"
+            detail="Only customers can view their reservations"
         )
 
-    offer = db.query(Offer).filter(
-        Offer.offer_id == offer_id
+    reservations = db.query(
+        Reservation
+    ).filter(
+        Reservation.customer_id == current_user.id
+    ).all()
+
+    return reservations
+
+
+@router.patch(
+    "/{reservation_id}/cancel",
+    response_model=ReservationResponse
+)
+def cancel_reservation(
+    reservation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can cancel reservations"
+        )
+
+    reservation = db.query(
+        Reservation
+    ).filter(
+        Reservation.reservation_id == reservation_id
     ).first()
 
-    if not offer:
+    if not reservation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Offer not found"
+            detail="Reservation not found"
         )
 
-    if offer.business_owner_id != current_user.id:
+    if reservation.customer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only delete your own offers"
+            detail="You can only cancel your own reservation"
         )
 
-    db.delete(offer)
-    db.commit()
+    if reservation.status != "reserved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only reserved reservations can be cancelled"
+        )
 
-    return {
-        "message": "Offer deleted successfully",
-        "offer_id": offer_id
-    }
+    reservation.status = "cancelled"
+
+    db.commit()
+    db.refresh(reservation)
+
+    return reservation
+
