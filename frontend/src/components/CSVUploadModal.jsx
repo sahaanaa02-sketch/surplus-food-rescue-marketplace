@@ -19,7 +19,8 @@ export default function CSVUploadModal({ onClose, onSuccess }) {
     const formData = new FormData();
     formData.append('file', file);
 
-    API.post('/offers/upload-csv', formData, {
+    // 🔄 Changed endpoint from '/offers/upload-csv' to '/csv/upload'
+    API.post('/csv/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
       .then(() => {
