@@ -1,25 +1,14 @@
 from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from config import settings
-
-
-DATABASE_URL = URL.create(
-    drivername="mysql+pymysql",
-    username=settings.db_user,
-    password=settings.db_password,
-    host=settings.db_host,
-    port=settings.db_port,
-    database=settings.db_name
-)
-
+# SQLite Database File Path
+DATABASE_URL = "sqlite:///./zerowastebite.db"
 
 engine = create_engine(
     DATABASE_URL,
+    connect_args={"check_same_thread": False},
     echo=True
 )
-
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -27,13 +16,10 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
-
 Base = declarative_base()
-
 
 def get_db():
     db = SessionLocal()
-
     try:
         yield db
     finally:

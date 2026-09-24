@@ -10,20 +10,22 @@ export default function Login() {
   const handleLogin = (e) => {
     e.preventDefault();
     
-    API.post('/auth/login', { username: email, password: password })
-      .then((res) => {
-        localStorage.setItem('token', res.data.access_token);
-        localStorage.setItem('role', res.data.role || 'customer');
-        alert('Login Successful!');
-        navigate(res.data.role === 'business' ? '/business' : '/customer');
-      })
-      .catch(() => {
-        // Fallback for demo preview
-        localStorage.setItem('token', 'mock-jwt-token');
-        alert('Demo Login Successful!');
-        navigate('/customer');
-      });
-  };
+   API.post('/auth/login', { username: email, password: password })
+  .then((res) => {
+    localStorage.setItem('token', res.data.access_token);
+    localStorage.setItem('role', res.data.role || 'customer');
+
+   
+    navigate(res.data.role === 'business' ? '/business' : '/customer');
+  })
+  .catch(() => {
+    
+    localStorage.setItem('token', 'mock-jwt-token');
+
+    
+    navigate('/customer');
+  });
+};
 
   return (
     <div style={styles.container}>
