@@ -1,4 +1,5 @@
 
+
 from datetime import datetime
 from uuid import uuid4
 
@@ -226,6 +227,65 @@ def cancel_reservation(
         )
 
     reservation.status = "cancelled"
+
+    db.commit()
+    db.refresh(reservation)
+
+    return reservation
+
+
+@router.patch(
+    "/{reservation_id}/collect",
+    response_model=ReservationResponse
+)
+def confirm_collection(
+    reservation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "food_owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only food business owners can confirm collection"
+        )
+
+    reservation = db.query(
+        Reservation
+    ).filter(
+        Reservation.reservation_id == reservation_id
+    ).first()
+
+    if not reservation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reservation not found"
+        )
+
+    offer = db.query(
+        Offer
+    ).filter(
+        Offer.id == reservation.offer_id
+    ).first()
+
+    if not offer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Offer not found"
+        )
+
+    if offer.business_owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only confirm collection for your own offers"
+        )
+
+    if reservation.status != "reserved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only reserved reservations can be marked as collected"
+        )
+
+    reservation.status = "collected"
 
     db.commit()
     db.refresh(reservation)
