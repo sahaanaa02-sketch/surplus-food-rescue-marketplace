@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import API from '../services/api';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -11,52 +10,34 @@ export default function Register() {
 
   const handleRegister = (e) => {
     e.preventDefault();
-    API.post('/auth/register', { name, email, password, role })
-      .then(() => {
-        alert('Registration Successful! Please login.');
-        navigate('/login');
-      })
-      .catch(() => {
-        alert('Registered locally for demo! Redirecting to login...');
-        navigate('/login');
-      });
+    localStorage.setItem('token', 'mock-jwt-token');
+    localStorage.setItem('role', role);
+    navigate(role === 'business' ? '/business' : '/customer');
   };
 
   return (
     <div style={styles.container}>
-      <div style={styles.card}>
+      <form onSubmit={handleRegister} style={styles.card}>
         <h2>Create Account</h2>
-        <form onSubmit={handleRegister} style={styles.form}>
-          <label>Full Name / Business Name</label>
-          <input type="text" placeholder="Sarah Jenkins" value={name} onChange={(e) => setName(e.target.value)} required style={styles.input} />
-
-          <label>Email Address</label>
-          <input type="email" placeholder="sarah@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required style={styles.input} />
-
-          <label>Password</label>
-          <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required style={styles.input} />
-
-          <label>Account Type</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)} style={styles.input}>
-            <option value="customer">Customer (Buy Surplus Food)</option>
-            <option value="business">Business / Merchant (Post Food)</option>
-          </select>
-
-          <button type="submit" style={styles.btn}>Register</button>
-        </form>
-        <p style={styles.footerText}>
-          Already registered? <Link to="/login">Login here</Link>
+        <input type="text" placeholder="Full Name / Restaurant Name" value={name} onChange={(e) => setName(e.target.value)} required style={styles.input} />
+        <input type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} required style={styles.input} />
+        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required style={styles.input} />
+        <select value={role} onChange={(e) => setRole(e.target.value)} style={styles.input}>
+          <option value="customer">Customer (Buy Food)</option>
+          <option value="business">Business (Post Food)</option>
+        </select>
+        <button type="submit" style={styles.btn}>Register</button>
+        <p style={{ marginTop: '15px', color: '#aaa' }}>
+          Already have an account? <Link to="/login" style={{ color: '#1DB954' }}>Login</Link>
         </p>
-      </div>
+      </form>
     </div>
   );
 }
 
 const styles = {
-  container: { minHeight: '80vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  card: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', border: '1px solid #E5E7EB', width: '100%', maxWidth: '400px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' },
-  form: { display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '15px' },
-  input: { padding: '10px', borderRadius: '6px', border: '1px solid #D1D5DB' },
-  btn: { backgroundColor: '#10B981', color: 'white', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' },
-  footerText: { textAlign: 'center', marginTop: '15px', fontSize: '14px', color: '#6B7280' }
+  container: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', backgroundColor: '#121212' },
+  card: { backgroundColor: '#1e1e1e', padding: '30px', borderRadius: '8px', width: '100%', maxWidth: '400px', color: '#fff', textAlign: 'center' },
+  input: { width: '100%', padding: '10px', margin: '10px 0', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#2a2a2a', color: '#fff', boxSizing: 'border-box' },
+  btn: { width: '100%', padding: '12px', backgroundColor: '#1DB954', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };

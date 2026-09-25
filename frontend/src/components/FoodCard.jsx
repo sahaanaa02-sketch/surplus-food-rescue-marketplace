@@ -3,117 +3,41 @@ import React from 'react';
 export default function FoodCard({ offer, onReserve }) {
   return (
     <div style={styles.card}>
-      <div style={styles.imageContainer}>
-        <img 
-          src={offer.image_url || 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500'} 
-          alt={offer.title} 
-          style={styles.image} 
-        />
-        <span style={styles.discountBadge}>
-          {Math.round(((offer.original_price - offer.discount_price) / offer.original_price) * 100)}% OFF
-        </span>
-      </div>
-
-      <div style={styles.content}>
+      <img src={offer.image_url} alt={offer.title} style={styles.image} />
+      <div style={styles.body}>
+        <span style={styles.badge}>{offer.category}</span>
         <h3 style={styles.title}>{offer.title}</h3>
-        <p style={styles.business}>{offer.business_name || 'Local Bakery/Store'}</p>
+        <p style={styles.business}>{offer.business_name}</p>
         
-        <div style={styles.detailsGroup}>
-          <p style={styles.expiry}>⏰ Pick before: {offer.pickup_time || '8:00 PM'}</p>
-          <p style={styles.quantity}>⚡ {offer.quantity} items left</p>
-        </div>
-
         <div style={styles.priceRow}>
           <div>
-            <span style={styles.discountPrice}>Rs. {offer.discount_price}</span>
-            <span style={styles.originalPrice}>Rs. {offer.original_price}</span>
+            <span style={styles.discountPrice}>₹{offer.discount_price}</span>
+            <span style={styles.originalPrice}>₹{offer.original_price}</span>
           </div>
-          <button style={styles.reserveBtn} onClick={() => onReserve(offer)}>
-            Reserve Now
-          </button>
+          <span style={styles.qty}>{offer.quantity} Left</span>
         </div>
+        
+        <p style={styles.time}>⏰ {offer.pickup_time}</p>
+        
+        <button onClick={onReserve} style={styles.btn}>
+          Reserve Meal
+        </button>
       </div>
     </div>
   );
 }
 
 const styles = {
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-    transition: 'transform 0.2s',
-    border: '1px solid #E5E7EB',
-  },
-  imageContainer: {
-    position: 'relative',
-    height: '160px',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-  discountBadge: {
-    position: 'absolute',
-    top: '10px',
-    right: '10px',
-    backgroundColor: '#EF4444',
-    color: 'white',
-    padding: '4px 8px',
-    borderRadius: '6px',
-    fontSize: '12px',
-    fontWeight: 'bold',
-  },
-  content: {
-    padding: '16px',
-  },
-  title: {
-    margin: '0 0 4px 0',
-    fontSize: '18px',
-    color: '#1F2937',
-  },
-  business: {
-    margin: '0 0 12px 0',
-    fontSize: '14px',
-    color: '#6B7280',
-  },
-  detailsGroup: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '13px',
-    color: '#4B5563',
-    marginBottom: '16px',
-    backgroundColor: '#F3F4F6',
-    padding: '8px',
-    borderRadius: '6px',
-  },
-  expiry: { margin: 0 },
-  quantity: { margin: 0, fontWeight: '600', color: '#D97706' },
-  priceRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  discountPrice: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: '#10B981',
-    marginRight: '8px',
-  },
-  originalPrice: {
-    fontSize: '14px',
-    textDecoration: 'line-through',
-    color: '#9CA3AF',
-  },
-  reserveBtn: {
-    backgroundColor: '#10B981',
-    color: 'white',
-    border: 'none',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-  }
+  card: { backgroundColor: '#1e1e1e', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column' },
+  image: { width: '100%', height: '160px', objectFit: 'cover' },
+  body: { padding: '15px', display: 'flex', flexDirection: 'column', flex: '1' },
+  badge: { backgroundColor: '#333', color: '#1DB954', fontSize: '11px', padding: '3px 8px', borderRadius: '4px', width: 'fit-content', marginBottom: '8px' },
+  title: { margin: '0 0 5px 0', fontSize: '18px' },
+  business: { color: '#aaa', fontSize: '13px', margin: '0 0 15px 0' },
+  priceRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' },
+  discountPrice: { fontSize: '20px', fontWeight: 'bold', color: '#1DB954', marginRight: '8px' },
+  originalPrice: { fontSize: '14px', color: '#777', textDecoration: 'line-through' },
+  qty: { fontSize: '12px', color: '#ff9800', backgroundColor: '#332a00', padding: '2px 6px', borderRadius: '4px' },
+  time: { fontSize: '12px', color: '#bbb', marginBottom: '15px' },
+  btn: { backgroundColor: '#1DB954', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: 'auto' }
 };
