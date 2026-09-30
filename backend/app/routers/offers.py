@@ -1,15 +1,16 @@
-
 from datetime import datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
 from app.auth.security import decode_access_token
 from app.models.user import User
 from app.models.offer import Offer
+from app.models.reservation import Reservation      # CHANGED (new import)
 from app.schemas.offer import (
     OfferCreate,
     OfferUpdate,
@@ -26,6 +27,39 @@ router = APIRouter(
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/auth/login"
 )
+
+
+# ==================================================
+# REMAINING STOCK  (CHANGED: new helper)
+# quantity = original stock. Valid reservations
+# (reserved / collected) kuraichu remaining kaattum.
+# Cancelled reservations count aagaathu, so cancel
+# panna stock thirumba varum. DB la maatram illa.
+# ==================================================
+
+def with_remaining(offers, db: Session):
+    if not offers:
+        return []
+
+    ids = [o.id for o in offers]
+
+    rows = db.query(
+        Reservation.offer_id,
+        func.coalesce(func.sum(Reservation.quantity), 0)
+    ).filter(
+        Reservation.offer_id.in_(ids),
+        Reservation.status.in_(["reserved", "collected"])
+    ).group_by(Reservation.offer_id).all()
+
+    used = {offer_id: int(qty) for offer_id, qty in rows}
+
+    result = []
+    for o in offers:
+        data = {c.name: getattr(o, c.name) for c in o.__table__.columns}
+        data["quantity"] = max(o.quantity - used.get(o.id, 0), 0)
+        result.append(data)
+
+    return result
 
 
 # ==================================================
@@ -106,7 +140,7 @@ def get_available_offers(
             )
         )
 
-    return query.all()
+    return with_remaining(query.all(), db)      # CHANGED
 
 
 # ==================================================
@@ -234,7 +268,7 @@ def get_my_offers(
         Offer.business_owner_id == current_user.id
     ).all()
 
-    return offers
+    return with_remaining(offers, db)      # CHANGED
 
 
 # ==================================================

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -55,7 +56,10 @@ def login(
     db: Session = Depends(get_db)
 ):
     user = db.query(User).filter(
-        User.username == form_data.username
+        or_(
+            User.username == form_data.username,
+            User.email == form_data.username
+        )
     ).first()
 
     if not user or not verify_password(
