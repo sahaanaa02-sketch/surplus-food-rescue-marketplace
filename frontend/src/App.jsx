@@ -7,7 +7,7 @@ import Offers from "./pages/Offers";
 import MyReservations from "./pages/MyReservations";
 import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
-import Admin from "./pages/AdminTemp";
+import Admin from "./pages/Admin";
 
 // login illa na -> login (vandha page ah ninaivu vachukkum)
 // thappaana role na -> avanga home page ku

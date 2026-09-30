@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
-import OfferCard, { CATS, CAT_EMOJI, FoodImg, info, isTonight, timeLeft, windowText } from "../components/OfferCard";
+import OfferCard, { CATS, CAT_EMOJI, FoodImg, info, timeLeft } from "../components/OfferCard";
 import Toast from "../components/Toast";
-import { C, S, money } from "../theme";
+import { C, S } from "../theme";
 
 const PAGE = 12;
 
@@ -14,9 +14,8 @@ export default function Offers() {
   const [cat, setCat] = useState("All");
   const [sort, setSort] = useState("soon");
   const [onlyOpen, setOnlyOpen] = useState(true);
-  const [tonight, setTonight] = useState(true);
   const [limit, setLimit] = useState(PAGE);
-  const [sel, setSel] = useState(null);
+  const [sel, setSel] = useState(null);       // reserve popup ku offer
   const [qty, setQty] = useState(1);
   const [popErr, setPopErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,13 +28,13 @@ export default function Offers() {
     setBusy(true);
     setPopErr("");
     try {
-      const r = await api.reserve(sel.id, qty);
+      const r = await api.reserve(sel.id, qty);          // numeric id
       nav("/my-reservations", {
         state: { flash: { ok: `Reserved ${qty} × ${sel.item}. Reservation ID: ${r.reservation_id ?? r.id}` } },
       });
     } catch (e) {
-      setPopErr(e.message);   // "Only 1 remaining" maathiri backend message
-      load();
+      setPopErr(e.message);        // "Only 1 remaining", "Offer expired" ... backend message
+      load();                      // stock refresh
     } finally {
       setBusy(false);
     }
@@ -43,8 +42,7 @@ export default function Offers() {
 
   const disc = o => (o.original_price - o.discounted_price) / o.original_price;
   const shown = offers
-    .filter(o => !onlyOpen || (o.quantity > 0 && timeLeft(o.pickup_end)))
-    .filter(o => !tonight || isTonight(o))
+    .filter(o => (!onlyOpen || (o.quantity > 0 && timeLeft(o.pickup_end))))
     .filter(o => cat === "All" || info(o).cat === cat)
     .filter(o => (o.item + " " + o.description + " " + o.pickup_location).toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) =>
@@ -54,21 +52,20 @@ export default function Offers() {
 
   const reset = fn => v => { fn(v); setLimit(PAGE); };
   const sInfo = sel ? info(sel) : null;
-  const chk = { display: "flex", alignItems: "center", gap: 8, color: C.muted, fontSize: 14, cursor: "pointer" };
 
   return (
     <div style={S.page}>
       <Toast msg={msg} onClose={() => setMsg(null)} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", flexWrap: "wrap", gap: 12, marginBottom: 22 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", flexWrap: "wrap", gap: 10, marginBottom: 22 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 32 }}>Surplus deals <span style={{ color: C.green }}>tonight</span></h1>
           <p style={{ color: C.muted, margin: "6px 0 0" }}>{shown.length} offers available</p>
         </div>
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-          <label style={chk}><input type="checkbox" checked={tonight} onChange={e => reset(setTonight)(e.target.checked)} /> Tonight only</label>
-          <label style={chk}><input type="checkbox" checked={onlyOpen} onChange={e => reset(setOnlyOpen)(e.target.checked)} /> Hide sold out / expired</label>
-        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, color: C.muted, fontSize: 14, cursor: "pointer" }}>
+          <input type="checkbox" checked={onlyOpen} onChange={e => reset(setOnlyOpen)(e.target.checked)} />
+          Hide sold out / expired
+        </label>
       </div>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
@@ -102,21 +99,21 @@ export default function Offers() {
         </div>
       )}
 
+      {/* RESERVE POPUP */}
       {sel && (
         <div onClick={() => setSel(null)} style={{ position: "fixed", inset: 0, background: "#000b", display: "grid", placeItems: "center", zIndex: 50, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ ...S.card, width: 390, maxWidth: "100%", padding: 0, overflow: "hidden" }}>
-            <div style={{ height: 150 }}><FoodImg srcs={sInfo.srcs} cat={sInfo.cat} alt={sel.item} /></div>
+          <div onClick={e => e.stopPropagation()} style={{ ...S.card, width: 380, maxWidth: "100%", padding: 0, overflow: "hidden" }}>
+            <div style={{ height: 140 }}><FoodImg k={sInfo.key} cat={sInfo.cat} alt={sel.item} /></div>
             <div style={{ padding: 22, display: "grid", gap: 12 }}>
               <h3 style={{ margin: 0 }}>{sel.item}</h3>
-              <small style={{ color: C.muted }}>{sel.quantity} available · 📍 {sel.pickup_location}</small>
-              <small style={{ color: C.muted }}>🕒 Pickup {windowText(sel)}</small>
+              <small style={{ color: C.muted }}>{sel.quantity} available · pickup at {sel.pickup_location}</small>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
                 <button style={S.btnGhost} onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
                 <b style={{ fontSize: 28, minWidth: 30, textAlign: "center" }}>{qty}</b>
                 <button style={S.btnGhost} onClick={() => setQty(qty + 1)}>+</button>
               </div>
               <div style={{ textAlign: "center", color: C.green, fontWeight: 800, fontSize: 22 }}>
-                Total {money(qty * sel.discounted_price)}
+                Total ₹{(qty * sel.discounted_price).toFixed(2)}
               </div>
               {popErr && <div style={{ color: C.red, fontSize: 14, textAlign: "center" }}>{popErr}</div>}
               <button style={S.btn} disabled={busy} onClick={confirm}>{busy ? "Reserving..." : "Confirm Reservation"}</button>

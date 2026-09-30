@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, download } from "../api";
 import Toast from "../components/Toast";
-import { C, S, T, money } from "../theme";
+import { C, S, T } from "../theme";
 
 const REPORTS = [
   ["summary", "Surplus Sales / Rescue Summary"],
@@ -11,12 +11,12 @@ const REPORTS = [
 
 const pretty = k => k.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase());
 const isObj = v => v && typeof v === "object" && !Array.isArray(v);
-const cell = (k, v) => (/price|sales|revenue/i.test(k) && v !== null && v !== "" && !isNaN(v) ? money(v) : String(v ?? "-"));
 
 function ReportView({ data }) {
   if (!data) return <p style={{ color: C.muted }}>Loading...</p>;
 
   const rows = Array.isArray(data) ? data : Object.values(data).find(Array.isArray);
+  // scalar values + ondru level nested object values ah tiles aa kaattrom
   const tiles = [];
   if (isObj(data)) {
     Object.entries(data).forEach(([k, v]) => {
@@ -34,7 +34,7 @@ function ReportView({ data }) {
           {tiles.map(([k, v]) => (
             <div key={k} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
               <div style={{ color: C.muted, fontSize: 12 }}>{pretty(k)}</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: C.green }}>{cell(k, v)}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: C.green }}>{String(v)}</div>
             </div>
           ))}
         </div>
@@ -45,7 +45,7 @@ function ReportView({ data }) {
             <thead><tr>{cols.map(c => <th key={c} style={T.th}>{pretty(c)}</th>)}</tr></thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={i}>{cols.map(c => <td key={c} style={T.td}>{cell(c, r[c])}</td>)}</tr>
+                <tr key={i}>{cols.map(c => <td key={c} style={T.td}>{String(r[c] ?? "-")}</td>)}</tr>
               ))}
             </tbody>
           </table>
@@ -62,24 +62,27 @@ export default function Reports() {
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
-    REPORTS.forEach(([k]) => api.report(k).then(d => setData(s => ({ ...s, [k]: d }))).catch(() => setData(s => ({ ...s, [k]: {} }))));
+    REPORTS.forEach(([k]) => api.report(k).then(d => setData(s => ({ ...s, [k]: d }))).catch(e => setData(s => ({ ...s, [k]: {} }))));
   }, []);
 
   async function dl(ext) {
     try { await download(`/reports/${tab}/${ext}`, `${tab}.${ext}`); }
     catch (e) { setMsg({ err: e.message }); }
   }
+
   const title = REPORTS.find(r => r[0] === tab)[1];
 
   return (
     <div style={S.page}>
       <Toast msg={msg} onClose={() => setMsg(null)} />
       <h1 style={{ margin: "0 0 22px", fontSize: 32 }}>Reports</h1>
+
       <div className="chips" style={{ marginBottom: 22 }}>
         {REPORTS.map(([k, t]) => (
           <button key={k} onClick={() => setTab(k)} style={{ ...(tab === k ? S.btn : S.btnGhost), borderRadius: 99, padding: "8px 18px" }}>{t}</button>
         ))}
       </div>
+
       <div style={S.card}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 22 }}>
           <h3 style={{ margin: 0, marginRight: "auto" }}>{title}</h3>

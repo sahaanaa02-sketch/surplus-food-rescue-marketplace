@@ -4,10 +4,6 @@ export const C = {
   amber: "#f59e0b", red: "#ef4444", blue: "#38bdf8",
 };
 
-// Sri Lankan Rupees
-export const money = n =>
-  "Rs. " + Number(n || 0).toLocaleString("en-LK", { maximumFractionDigits: 2 });
-
 export const S = {
   page: { maxWidth: 1200, margin: "0 auto", padding: "32px 24px" },
   card: { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22 },
