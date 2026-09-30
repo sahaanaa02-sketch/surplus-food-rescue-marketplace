@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import Toast from "../components/Toast";
+import Toast, { ConfirmDialog } from "../components/Toast";
 import { C, S, T, badge } from "../theme";
 
 const roleColor = { customer: C.blue, food_owner: C.amber, admin: C.green };
@@ -13,21 +13,24 @@ export default function Admin() {
   const [tab, setTab] = useState("overview");
   const [q, setQ] = useState("");
   const [role, setRole] = useState("all");
+  const [ask, setAsk] = useState(null);
   const [msg, setMsg] = useState(null);
 
   const load = () => {
-    api.adminSummary().then(setSum).catch(e => setMsg({ err: e.message }));
-    api.adminUsers().then(d => setUsers(d?.users || [])).catch(e => setMsg({ err: e.message }));
+    api.adminSummary().then(setSum).catch(e => setMsg({ err: "Summary: " + e.message }));
+    api.adminUsers().then(d => setUsers(d?.users || [])).catch(e => setMsg({ err: "Users: " + e.message }));
   };
   useEffect(() => { load(); }, []);
 
-  async function toggle(u) {
+  async function toggle() {
+    const u = ask;
+    setAsk(null);
     try {
       await api.toggleUser(u.id);
       setMsg({ ok: `${u.username} is now ${u.is_active ? "deactivated" : "activated"}` });
       load();
     } catch (e) {
-      setMsg({ err: e.message });      // admin thannaiye deactivate panna backend reject pannum
+      setMsg({ err: e.message });
     }
   }
 
@@ -40,7 +43,6 @@ export default function Admin() {
     ["Total users", U.total, C.text], ["Customers", U.customers, C.blue], ["Food businesses", U.food_owners, C.amber],
     ["Admins", U.admins, C.green], ["Active", U.active, C.green], ["Inactive", U.inactive, C.red],
   ];
-  const market = [["Total offers", M.total_offers], ["Total reservations", M.total_reservations]];
   const bars = [["Reserved", M.reserved, C.amber], ["Collected", M.collected, C.green], ["Cancelled", M.cancelled, C.red]];
 
   const shown = users
@@ -50,6 +52,10 @@ export default function Admin() {
   return (
     <div style={S.page}>
       <Toast msg={msg} onClose={() => setMsg(null)} />
+      <ConfirmDialog open={!!ask} title={ask?.is_active ? "Deactivate user?" : "Activate user?"}
+        text={ask ? `${ask.username} will ${ask.is_active ? "no longer be able to login" : "be able to login again"}.` : ""}
+        yes={ask?.is_active ? "Deactivate" : "Activate"} danger={!!ask?.is_active} onYes={toggle} onNo={() => setAsk(null)} />
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 22 }}>
         <h1 style={{ margin: 0, fontSize: 32 }}>Admin <span style={{ color: C.green }}>Dashboard</span></h1>
         <Link to="/reports"><button style={S.btnGhost}>📊 View reports</button></Link>
@@ -76,7 +82,7 @@ export default function Admin() {
           <h3 style={{ margin: "0 0 12px", color: C.muted }}>Marketplace</h3>
           <div className="two-col" style={{ alignItems: "start" }}>
             <div className="kpi-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              {market.map(([l, n]) => (
+              {[["Total offers", M.total_offers], ["Total reservations", M.total_reservations]].map(([l, n]) => (
                 <div key={l} style={S.card}>
                   <div style={{ color: C.muted, fontSize: 13 }}>{l}</div>
                   <div style={{ fontSize: 34, fontWeight: 800 }}>{n ?? "-"}</div>
@@ -87,7 +93,6 @@ export default function Admin() {
                 <div style={{ fontSize: 34, fontWeight: 800, color: C.green }}>{pct(M.collected || 0)}%</div>
               </div>
             </div>
-
             <div style={S.card}>
               <h3 style={{ margin: "0 0 18px" }}>Reservation status</h3>
               {bars.map(([l, n, c]) => (
@@ -128,9 +133,7 @@ export default function Admin() {
                     <td style={T.td}><span style={badge(roleColor[u.role] || C.muted)}>{roleName[u.role] || u.role}</span></td>
                     <td style={T.td}><span style={badge(u.is_active ? C.green : C.red)}>{u.is_active ? "Active" : "Inactive"}</span></td>
                     <td style={{ ...T.td, textAlign: "right" }}>
-                      <button style={u.is_active ? S.btnDanger : S.btn} onClick={() => toggle(u)}>
-                        {u.is_active ? "Deactivate" : "Activate"}
-                      </button>
+                      <button style={u.is_active ? S.btnDanger : S.btn} onClick={() => setAsk(u)}>{u.is_active ? "Deactivate" : "Activate"}</button>
                     </td>
                   </tr>
                 ))}
