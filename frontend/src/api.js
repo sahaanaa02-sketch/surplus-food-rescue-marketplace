@@ -6,15 +6,21 @@ async function req(path, opts = {}) {
   if (token()) headers.Authorization = `Bearer ${token()}`;
   const res = await fetch(BASE + path, { ...opts, headers });
 
-  if (res.status === 401 && path !== "/auth/login") {   // token expire
-    localStorage.clear();
-    window.location.href = "/login";
-    return;
+  // token expire aana mattum login ku anuppum
+  if (res.status === 401 && path !== "/auth/login") {
+    const e = await res.clone().json().catch(() => ({}));
+    if (/token|expired|authenticated/i.test(String(e.detail || ""))) {
+      localStorage.clear();
+      window.location.href = "/login";
+      return;
+    }
   }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     const d = e.detail;
-    throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg).join(", ") : "Request failed");
+    const err = new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg).join(", ") : "Request failed");
+    err.status = res.status;
+    throw err;
   }
   return res.status === 204 ? null : res.json();
 }
@@ -25,8 +31,6 @@ const json = (method, body) => ({
   body: JSON.stringify(body),
 });
 
-// reservation id: cancel/collect path ku ithai use panrom
-// (Swagger la path param integer na `r.id`, string na `r.reservation_id`)
 export const rid = r => r.reservation_id ?? r.id;
 
 export const api = {
@@ -40,7 +44,6 @@ export const api = {
   updateOffer: (id, b) => req(`/offers/${id}`, json("PUT", b)),
   deleteOffer: id => req(`/offers/${id}`, { method: "DELETE" }),
 
-  // offer_id = offer oda numeric `id` (OFR-xxxx code illa)
   reserve: (offer_id, quantity) => req("/reservations/", json("POST", { offer_id, quantity })),
   myReservations: () => req("/reservations/my-reservations"),
   cancel: id => req(`/reservations/${id}/cancel`, { method: "PATCH" }),
@@ -53,10 +56,19 @@ export const api = {
   },
   report: name => req(`/reports/${name}`),
 
-  // admin (Swagger la Admin section la path check pannu)
   adminSummary: () => req("/admin/summary"),
   adminUsers: () => req("/admin/users"),
-  toggleUser: id => req(`/admin/users/${id}/status`, { method: "PATCH" }),
+  // status endpoint path/method Swagger la irukkura maathiri illa na next combination try pannum
+  async toggleUser(id) {
+    let last;
+    for (const p of ["status", "toggle", "toggle-status"]) {
+      for (const m of ["PATCH", "PUT"]) {
+        try { return await req(`/admin/users/${id}/${p}`, { method: m }); }
+        catch (e) { last = e; if (e.status !== 404 && e.status !== 405) throw e; }
+      }
+    }
+    throw last;
+  },
 };
 
 export async function download(path, filename) {

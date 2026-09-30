@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth, homeFor } from "../context/AuthContext";
-import OfferCard, { FoodImg, PHOTO, CATS, CAT_EMOJI } from "../components/OfferCard";
+import OfferCard, { FoodImg, PHOTO, CAT_EMOJI, isTonight } from "../components/OfferCard";
 import { LogoMark } from "../components/Navbar";
 import { C, S } from "../theme";
 
 const heroCards = [
-  ["croissant", "Bakery", "Fresh Bakery Box", "₹250", "-50%", "-4deg", "0s", { left: "0%", top: "0%" }],
-  ["pizza", "Meals", "Pizza Combo", "₹550", "-50%", "3deg", "0.7s", { left: "50%", top: "6%" }],
-  ["salad", "Meals", "Garden Salads", "₹270", "-50%", "3deg", "1.3s", { left: "4%", top: "50%" }],
-  ["cake", "Desserts", "Cake Slice Pack", "₹200", "-55%", "-3deg", "1.9s", { left: "52%", top: "56%" }],
+  ["croissant", "Bakery", "Fresh Bakery Box", "Rs. 600", "-50%", "-4deg", "0s", { left: "0%", top: "0%" }],
+  ["pizza", "Meals", "Pizza Combo", "Rs. 1,300", "-50%", "3deg", "0.7s", { left: "50%", top: "6%" }],
+  ["salad", "Meals", "Garden Salads", "Rs. 650", "-45%", "3deg", "1.3s", { left: "4%", top: "50%" }],
+  ["cake", "Desserts", "Cake Slice Pack", "Rs. 500", "-55%", "-3deg", "1.9s", { left: "52%", top: "56%" }],
 ];
 
 const steps = [
@@ -40,7 +40,7 @@ export default function Landing() {
   // offers endpoint public, athanaala login illaamale live deals kaattalaam
   useEffect(() => { api.offers().then(d => setOffers(d || [])).catch(() => {}); }, []);
 
-  const live = offers.filter(o => new Date(o.pickup_end) > new Date() && o.quantity > 0);
+  const live = offers.filter(o => isTonight(o) && o.quantity > 0);
   const units = live.reduce((s, o) => s + o.quantity, 0);
   const avgOff = live.length
     ? Math.round(live.reduce((s, o) => s + (1 - o.discounted_price / o.original_price) * 100, 0) / live.length)
